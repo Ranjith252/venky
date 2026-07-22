@@ -8,13 +8,16 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
+        id: '/',
         name: 'Hayagreeva Academy',
         short_name: 'Hayagreeva',
         description: 'Online Learning and Exam Platform',
-        theme_color: '#2563eb',
-        background_color: '#ffffff',
-        display: 'standalone',
         start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        background_color: '#ffffff',
+        theme_color: '#2563eb',
+        lang: 'en',
         icons: [
           {
             src: '/icon-192.png',
