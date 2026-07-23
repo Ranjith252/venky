@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizePhoneState, revokePhoneAccess } from './src/permissionUtils.js'
+import { comparePasswordValue, normalizePhoneState, revokePhoneAccess } from './src/permissionUtils.js'
 
 test('revokePhoneAccess removes a phone from access, requests, and user records', () => {
   const input = {
@@ -26,4 +26,10 @@ test('normalizePhoneState matches phones even when formatting differs', () => {
   assert.deepEqual(result.permittedPhones, ['9876543210', '9876543211'])
   assert.deepEqual(result.permissionRequests, [{ phone: '9876543210', otp: '123456' }])
   assert.deepEqual(result.users, { '9876543210': 'secret' })
+})
+
+test('comparePasswordValue trims whitespace before comparing passwords', () => {
+  assert.equal(comparePasswordValue('  Venky@2025  ', 'Venky@2025'), true)
+  assert.equal(comparePasswordValue('student123', ' student123 '), true)
+  assert.equal(comparePasswordValue('wrong', 'student123'), false)
 })

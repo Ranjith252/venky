@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import './App.css'
-import { loadPermissionSharedState, normalizePhoneState, revokePhoneAccess, savePermissionSharedState } from './permissionUtils'
+import { comparePasswordValue, loadPermissionSharedState, normalizePhoneKey, normalizePhoneState, revokePhoneAccess, savePermissionSharedState } from './permissionUtils'
 
 const initialQuestions = [] // Start with empty questions - admin will add up to 100 questions
 
@@ -507,12 +507,14 @@ function App() {
   const isCorrect = selectedOption === question?.answer
 
   const loginStatusMessage = (() => {
-    const phone = phoneInput.trim()
+    const phone = normalizePhoneKey(phoneInput)
     if (phone) {
-      if (permittedPhones.includes(phone)) {
+      const normalizedPermittedPhones = permittedPhones.map((entry) => normalizePhoneKey(entry))
+      const normalizedPermissionRequests = permissionRequests.map((entry) => ({ ...entry, phone: normalizePhoneKey(entry.phone) }))
+      if (normalizedPermittedPhones.includes(phone)) {
         return 'This phone has permission. Enter your password to login and take exams.'
       }
-      if (permissionRequests.some((r) => r.phone === phone)) {
+      if (normalizedPermissionRequests.some((r) => r.phone === phone)) {
         return 'Permission request is pending. Teacher must approve your OTP before you can take exams.'
       }
       return 'New phone detected. After you submit, the teacher will receive an OTP to approve your access.'
@@ -573,7 +575,7 @@ function App() {
     const name = nameInput.trim()
     const adminNames = ['venkatesh', 'venjatesh', 'admin', 'teacher']
     // Only accept exact admin username+password
-    if (name && adminNames.includes(name.toLowerCase()) && passwordInput === adminPassword) {
+    if (name && adminNames.includes(name.toLowerCase()) && comparePasswordValue(passwordInput, adminPassword)) {
       setUser(name)
       setUserRole('admin')
       setNameInput('')
@@ -585,7 +587,7 @@ function App() {
     }
 
     if (forgotMode) {
-      const phone = phoneInput.trim()
+      const phone = normalizePhoneKey(phoneInput)
       if (!phone) {
         setErrorMessage('Enter your phone to reset your password')
         return
@@ -617,17 +619,17 @@ function App() {
     }
 
     if (phoneInput.trim() && passwordInput) {
-      const phone = String(phoneInput.trim()).replace(/\D/g, '')
+      const phone = normalizePhoneKey(phoneInput)
       if (!phone) {
         setErrorMessage('Enter a valid phone number')
         return
       }
-      const normalizedPermittedPhones = permittedPhones.map((entry) => String(entry || '').trim().replace(/\D/g, ''))
-      const normalizedPermissionRequests = permissionRequests.map((entry) => ({ ...entry, phone: String(entry.phone || '').trim().replace(/\D/g, '') }))
+      const normalizedPermittedPhones = permittedPhones.map((entry) => normalizePhoneKey(entry))
+      const normalizedPermissionRequests = permissionRequests.map((entry) => ({ ...entry, phone: normalizePhoneKey(entry.phone) }))
       const hasPermission = normalizedPermittedPhones.includes(phone)
       if (hasPermission) {
         if (users[phone]) {
-          if (users[phone] === passwordInput) {
+          if (comparePasswordValue(passwordInput, users[phone])) {
             setUser(phone)
             setUserRole('user')
             setCurrentPhone(phone)
@@ -652,7 +654,7 @@ function App() {
         const existing = normalizedPermissionRequests.find((r) => r.phone === phone)
         if (!existing) {
           const otp = String(Math.floor(100000 + Math.random() * 900000))
-          const req = { phone, otp, password: passwordInput, requestedAt: new Date().toISOString() }
+          const req = { phone, otp, password: passwordInput.trim(), requestedAt: new Date().toISOString() }
           setPermissionRequests((prev) => [...prev, req])
           setErrorMessage('Permission requested. Teacher will receive OTP to approve.')
         } else {
@@ -847,7 +849,7 @@ function App() {
     const today = new Date().toISOString().slice(0, 10)
     const examDate = dateStr?.trim() || today
 
-    // pick up to `count` random questions from pool
+    // pick up to `count` random questions from pool+
     // Only include questions that have exactly 4 non-empty options
     const pool = questions.filter((q) => Array.isArray(q.options) && q.options.filter(Boolean).length === 4)
     if (pool.length === 0) {
@@ -1618,6 +1620,7 @@ function App() {
                 value={videoTitleInput}
                 onChange={(e) => setVideoTitleInput(e.target.value)}
                 placeholder="Enter video title"
+                style={{ width: '100%' }}
               />
               <label htmlFor="video-upload" className="upload-button">
                 📤 Upload video

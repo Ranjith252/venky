@@ -20,6 +20,10 @@ export function normalizePhoneKey(phone) {
   return digits
 }
 
+export function comparePasswordValue(input, stored) {
+  return String(input || '').trim() === String(stored || '').trim()
+}
+
 export function normalizePhoneState(state) {
   const permittedPhones = Array.isArray(state?.permittedPhones)
     ? state.permittedPhones.map((phone) => normalizePhoneKey(phone)).filter(Boolean)
