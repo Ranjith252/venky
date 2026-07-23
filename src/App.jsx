@@ -842,59 +842,6 @@ function App() {
     event.target.value = ''
   }
 
-  const handleExportAppData = () => {
-    const data = {
-      questions,
-      exams,
-      permittedPhones,
-      permissionRequests,
-      users,
-      resetRequests,
-      studyNotes,
-      studySubjects,
-      adminAudit,
-      videos,
-    }
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `quiz-backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-  }
-
-  const handleImportAppData = (event) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      try {
-        const imported = JSON.parse(e.target.result)
-        if (!imported || typeof imported !== 'object') {
-          throw new Error('Invalid backup format')
-        }
-        if (Array.isArray(imported.questions)) setQuestions(normalizeQuestions(imported.questions))
-        if (imported.exams && typeof imported.exams === 'object') setExams(imported.exams)
-        if (Array.isArray(imported.permittedPhones)) setPermittedPhones(imported.permittedPhones)
-        if (Array.isArray(imported.permissionRequests)) setPermissionRequests(imported.permissionRequests)
-        if (imported.users && typeof imported.users === 'object') setUsers(imported.users)
-        if (imported.resetRequests && typeof imported.resetRequests === 'object') setResetRequests(imported.resetRequests)
-        if (Array.isArray(imported.studyNotes)) setStudyNotes(imported.studyNotes)
-        if (Array.isArray(imported.studySubjects)) setStudySubjects(imported.studySubjects)
-        if (Array.isArray(imported.adminAudit)) setAdminAudit(imported.adminAudit)
-        if (Array.isArray(imported.videos)) setVideos(imported.videos)
-        setErrorMessage('App backup imported successfully.')
-      } catch (error) {
-        setErrorMessage('Failed to import backup file. Please use a valid export file.')
-      }
-    }
-    reader.readAsText(file)
-    event.target.value = ''
-  }
-
   // Create an exam for a given date with N questions (default 20), valid for 24 hours
   const handleCreateExam = (dateStr, count = 20) => {
     const today = new Date().toISOString().slice(0, 10)
@@ -1704,23 +1651,6 @@ function App() {
               <p className="upload-note">Removes all questions, exams, videos, and user data. Start completely fresh.</p>
             </div>
 
-            <div className="import-group">
-              <button type="button" className="secondary-button" onClick={handleExportAppData} style={{ backgroundColor: '#e3f2fd', color: '#1565c0' }}>
-                📦 Export App Data
-              </button>
-              <p className="upload-note">Download current questions, exams, permissions, and study data as JSON.</p>
-            </div>
-            <div className="import-group">
-              <label htmlFor="app-data-import" className="upload-button">📥 Import App Backup</label>
-              <input
-                id="app-data-import"
-                type="file"
-                accept="application/json"
-                hidden
-                onChange={handleImportAppData}
-              />
-              <p className="upload-note">Restore app state from a previously exported backup file.</p>
-            </div>
           </section>
         )}
 
