@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import './App.css'
-import { revokePhoneAccess } from './permissionUtils'
+import { loadPermissionSharedState, normalizePhoneState, revokePhoneAccess, savePermissionSharedState } from './permissionUtils'
 
 const initialQuestions = [] // Start with empty questions - admin will add up to 100 questions
 
@@ -109,15 +109,27 @@ function App() {
   const [adminPassword, setAdminPassword] = useState(() => localStorage.getItem('adminPassword') || 'Venky@2025')
   const [permittedPhones, setPermittedPhones] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('permittedPhones') || '[]')
+      const parsed = JSON.parse(localStorage.getItem('permittedPhones') || '[]')
+      return Array.isArray(parsed) ? parsed.map((phone) => String(phone || '').trim().replace(/\D/g, '')).filter(Boolean) : []
     } catch (e) {
       return []
     }
   })
+  const [permissionStateReady, setPermissionStateReady] = useState(false)
   // permissionRequests: array of { phone, otp, password, requestedAt }
   const [permissionRequests, setPermissionRequests] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('permissionRequests') || '[]')
+      const parsed = JSON.parse(localStorage.getItem('permissionRequests') || '[]')
+      return Array.isArray(parsed)
+        ? parsed
+            .map((request) => {
+              if (!request || typeof request !== 'object') return null
+              const phone = String(request.phone || '').trim().replace(/\D/g, '')
+              if (!phone) return null
+              return { ...request, phone }
+            })
+            .filter(Boolean)
+        : []
     } catch (e) {
       return []
     }
@@ -126,7 +138,14 @@ function App() {
   // persisted user store: { phone: password }
   const [users, setUsers] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('quizUsers') || '{}')
+      const parsed = JSON.parse(localStorage.getItem('quizUsers') || '{}')
+      return Object.entries(parsed || {}).reduce((acc, [phone, password]) => {
+        const normalizedPhone = String(phone || '').trim().replace(/\D/g, '')
+        if (normalizedPhone) {
+          acc[normalizedPhone] = password
+        }
+        return acc
+      }, {})
     } catch (e) {
       return {}
     }
@@ -304,22 +323,42 @@ function App() {
   }, [user, userRole])
 
   useEffect(() => {
-    try {
-      localStorage.setItem('permittedPhones', JSON.stringify(permittedPhones))
-    } catch (e) {}
-  }, [permittedPhones])
+    let active = true
+
+    const hydratePermissionState = async () => {
+      const remoteState = await loadPermissionSharedState()
+      if (!active) return
+
+      if (remoteState) {
+        const normalized = normalizePhoneState(remoteState)
+        setPermittedPhones(normalized.permittedPhones)
+        setPermissionRequests(normalized.permissionRequests)
+        setUsers(normalized.users)
+      }
+
+      setPermissionStateReady(true)
+    }
+
+    hydratePermissionState()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
-    try {
-      localStorage.setItem('permissionRequests', JSON.stringify(permissionRequests))
-    } catch (e) {}
-  }, [permissionRequests])
+    if (!permissionStateReady) return
 
-  useEffect(() => {
+    const payload = normalizePhoneState({ permittedPhones, permissionRequests, users })
+
     try {
-      localStorage.setItem('quizUsers', JSON.stringify(users))
+      localStorage.setItem('permittedPhones', JSON.stringify(payload.permittedPhones))
+      localStorage.setItem('permissionRequests', JSON.stringify(payload.permissionRequests))
+      localStorage.setItem('quizUsers', JSON.stringify(payload.users))
     } catch (e) {}
-  }, [users])
+
+    savePermissionSharedState(payload).catch(() => {})
+  }, [permissionStateReady, permittedPhones, permissionRequests, users])
 
   useEffect(() => {
     try {
@@ -578,25 +617,17 @@ function App() {
     }
 
     if (phoneInput.trim() && passwordInput) {
-      const phone = phoneInput.trim()
-        // If this phone has already been permitted by admin, allow login.
-        if (permittedPhones.includes(phone)) {
-          // If we have a stored password for this phone, validate it.
-          if (users[phone]) {
-            if (users[phone] === passwordInput) {
-              setUser(phone)
-              setUserRole('user')
-              setCurrentPhone(phone)
-              setNameInput('')
-              setPasswordInput('')
-              setPhoneInput('')
-              setErrorMessage('')
-            } else {
-              setErrorMessage('Incorrect password for this phone')
-            }
-          } else {
-            // Admin granted permission but user record missing: create user record with provided password and allow login.
-            setUsers((prev) => ({ ...prev, [phone]: passwordInput }))
+      const phone = String(phoneInput.trim()).replace(/\D/g, '')
+      if (!phone) {
+        setErrorMessage('Enter a valid phone number')
+        return
+      }
+      const normalizedPermittedPhones = permittedPhones.map((entry) => String(entry || '').trim().replace(/\D/g, ''))
+      const normalizedPermissionRequests = permissionRequests.map((entry) => ({ ...entry, phone: String(entry.phone || '').trim().replace(/\D/g, '') }))
+      const hasPermission = normalizedPermittedPhones.includes(phone)
+      if (hasPermission) {
+        if (users[phone]) {
+          if (users[phone] === passwordInput) {
             setUser(phone)
             setUserRole('user')
             setCurrentPhone(phone)
@@ -604,19 +635,30 @@ function App() {
             setPasswordInput('')
             setPhoneInput('')
             setErrorMessage('')
+          } else {
+            setErrorMessage('Incorrect password for this phone')
           }
         } else {
-          // Not yet permitted: create or report permission request
-          const existing = permissionRequests.find((r) => r.phone === phone)
-          if (!existing) {
-            const otp = String(Math.floor(100000 + Math.random() * 900000))
-            const req = { phone, otp, password: passwordInput, requestedAt: new Date().toISOString() }
-            setPermissionRequests((prev) => [...prev, req])
-            setErrorMessage('Permission requested. Teacher will receive OTP to approve.')
-          } else {
-            setErrorMessage('Permission already requested. Wait for teacher approval.')
-          }
+          setUsers((prev) => ({ ...prev, [phone]: passwordInput }))
+          setUser(phone)
+          setUserRole('user')
+          setCurrentPhone(phone)
+          setNameInput('')
+          setPasswordInput('')
+          setPhoneInput('')
+          setErrorMessage('')
         }
+      } else {
+        const existing = normalizedPermissionRequests.find((r) => r.phone === phone)
+        if (!existing) {
+          const otp = String(Math.floor(100000 + Math.random() * 900000))
+          const req = { phone, otp, password: passwordInput, requestedAt: new Date().toISOString() }
+          setPermissionRequests((prev) => [...prev, req])
+          setErrorMessage('Permission requested. Teacher will receive OTP to approve.')
+        } else {
+          setErrorMessage('Permission already requested. Wait for teacher approval.')
+        }
+      }
     } else if (name) {
       setErrorMessage('Admin login requires password')
     } else {
@@ -980,8 +1022,9 @@ function App() {
       return
     }
 
-    const phone = currentPhone || user
-    if (userRole === 'admin' || permittedPhones.includes(phone)) {
+    const phone = String(currentPhone || user || '').trim().replace(/\D/g, '')
+    const normalizedPermittedPhones = permittedPhones.map((entry) => String(entry || '').trim().replace(/\D/g, ''))
+    if (userRole === 'admin' || normalizedPermittedPhones.includes(phone)) {
       setActiveExamQuestions(valid)
       setActiveExamTitle(todays.title || quizTitle)
       setCurrentIndex(0)
@@ -993,7 +1036,7 @@ function App() {
       return
     }
 
-    const exists = permissionRequests.find((r) => r.phone === phone)
+    const exists = permissionRequests.find((r) => String(r.phone || '').trim().replace(/\D/g, '') === phone)
     if (!exists) {
       const otp = String(Math.floor(100000 + Math.random() * 900000))
       const req = { phone, otp, password: '', requestedAt: new Date().toISOString() }
