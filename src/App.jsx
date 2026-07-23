@@ -1810,7 +1810,7 @@ function App() {
         {isAdmin && (
           <section className="dashboard-card">
             <div className="dashboard-section">
-              <h2>📚 Study Materials (Separate from Quiz)</h2>
+              <h2>📚 Study Materials </h2>
               <p>Add study notes for each subject with answers and explanations. Students can study this material independently.</p>
               <label htmlFor="study-subject">Subject *</label>
               <input
