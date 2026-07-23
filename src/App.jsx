@@ -106,7 +106,7 @@ function App() {
   const [passwordInput, setPasswordInput] = useState('')
   const [forgotMode, setForgotMode] = useState(false)
   const [currentPhone, setCurrentPhone] = useState(() => localStorage.getItem('quizUser') || '')
-  const [adminPassword, setAdminPassword] = useState(() => localStorage.getItem('adminPassword') || 'V7702602713V')
+  const [adminPassword, setAdminPassword] = useState(() => localStorage.getItem('adminPassword') || 'Venky@2025')
   const [permittedPhones, setPermittedPhones] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('permittedPhones') || '[]')
