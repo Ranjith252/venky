@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import './App.css'
+import { revokePhoneAccess } from './permissionUtils'
 
 const initialQuestions = [] // Start with empty questions - admin will add up to 100 questions
 
@@ -428,6 +429,25 @@ function App() {
     const entry = { id: Date.now(), action, at: new Date().toISOString() }
     setAdminAudit((prev) => [entry, ...prev].slice(0, 200))
     setErrorMessage(action)
+  }
+
+  const removePhoneAccess = (phone) => {
+    const normalizedPhone = String(phone || '').trim()
+    if (!normalizedPhone) return
+
+    const nextState = revokePhoneAccess(
+      {
+        permittedPhones,
+        permissionRequests,
+        users,
+      },
+      normalizedPhone
+    )
+
+    setPermittedPhones(nextState.permittedPhones)
+    setPermissionRequests(nextState.permissionRequests)
+    setUsers(nextState.users)
+    pushAudit(`Removed access for ${normalizedPhone}`)
   }
 
   const isAdmin = userRole === 'admin'
@@ -997,8 +1017,7 @@ function App() {
                   type="button"
                   onClick={() => {
                     if (!window.confirm(`Revoke permission for ${p}?`)) return
-                    setPermittedPhones((prev) => prev.filter((x) => x !== p))
-                    pushAudit(`Revoked permission for ${p}`)
+                    removePhoneAccess(p)
                   }}
                 >
                   Revoke
@@ -1015,8 +1034,7 @@ function App() {
   function AdminDebugPanel() {
     const revokePhone = (p) => {
       if (!window.confirm(`Revoke permission for ${p}?`)) return
-      setPermittedPhones((prev) => prev.filter((x) => x !== p))
-      pushAudit(`Revoked permission for ${p}`)
+      removePhoneAccess(p)
     }
 
     const removeUser = (u) => {
