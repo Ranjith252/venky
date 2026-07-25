@@ -51,6 +51,23 @@ export function normalizePhoneState(state) {
   return { ...state, permittedPhones, permissionRequests, users }
 }
 
+export function normalizeSharedState(state) {
+  const normalized = normalizePhoneState(state)
+  return {
+    ...normalized,
+    questions: Array.isArray(state?.questions) ? state.questions : [],
+    exams: state && typeof state === 'object' && state.exams && typeof state.exams === 'object' ? state.exams : {},
+    adminPassword: typeof state?.adminPassword === 'string' ? state.adminPassword : '',
+    quizTitle: typeof state?.quizTitle === 'string' ? state.quizTitle : 'My Quiz',
+    studyNotes: Array.isArray(state?.studyNotes) ? state.studyNotes : [],
+    studySubjects: Array.isArray(state?.studySubjects) ? state.studySubjects : [],
+    notifications: Array.isArray(state?.notifications) ? state.notifications : [],
+    notificationRecipients: Array.isArray(state?.notificationRecipients) ? state.notificationRecipients : [],
+    desktopNotificationsEnabled: Boolean(state?.desktopNotificationsEnabled),
+    videos: Array.isArray(state?.videos) ? state.videos : [],
+  }
+}
+
 export function revokePhoneAccess(state, phone) {
   const normalizedPhone = normalizePhoneKey(phone)
   if (!normalizedPhone) return state

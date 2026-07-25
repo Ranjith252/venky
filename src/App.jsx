@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import './App.css'
-import { comparePasswordValue, loadPermissionSharedState, normalizePhoneKey, normalizePhoneState, revokePhoneAccess, savePermissionSharedState } from './permissionUtils'
+import { comparePasswordValue, loadPermissionSharedState, normalizePhoneKey, normalizePhoneState, normalizeSharedState, revokePhoneAccess, savePermissionSharedState } from './permissionUtils'
 
 const initialQuestions = [] // Start with empty questions - admin will add up to 100 questions
 
@@ -330,10 +330,22 @@ function App() {
       if (!active) return
 
       if (remoteState) {
-        const normalized = normalizePhoneState(remoteState)
+        const normalized = normalizeSharedState(remoteState)
         setPermittedPhones(normalized.permittedPhones)
         setPermissionRequests(normalized.permissionRequests)
         setUsers(normalized.users)
+        setAdminPassword(normalized.adminPassword || adminPassword)
+        setQuestions(normalized.questions || [])
+        setExams(normalized.exams || {})
+        setQuizTitle(normalized.quizTitle || 'My Quiz')
+        setStudyNotes(normalized.studyNotes || [])
+        setStudySubjects(normalized.studySubjects || [])
+        setNotifications(normalized.notifications || [])
+        setNotificationRecipients(normalized.notificationRecipients || [])
+        setDesktopNotificationsEnabled(Boolean(normalized.desktopNotificationsEnabled))
+        if (Array.isArray(normalized.videos)) {
+          setVideos(normalized.videos)
+        }
       }
 
       setPermissionStateReady(true)
@@ -349,16 +361,40 @@ function App() {
   useEffect(() => {
     if (!permissionStateReady) return
 
-    const payload = normalizePhoneState({ permittedPhones, permissionRequests, users })
+    const payload = normalizeSharedState({
+      permittedPhones,
+      permissionRequests,
+      users,
+      adminPassword,
+      questions,
+      exams,
+      quizTitle,
+      studyNotes,
+      studySubjects,
+      notifications,
+      notificationRecipients,
+      desktopNotificationsEnabled,
+      videos,
+    })
 
     try {
       localStorage.setItem('permittedPhones', JSON.stringify(payload.permittedPhones))
       localStorage.setItem('permissionRequests', JSON.stringify(payload.permissionRequests))
       localStorage.setItem('quizUsers', JSON.stringify(payload.users))
+      localStorage.setItem('quizQuestions', JSON.stringify(normalizeQuestions(payload.questions)))
+      localStorage.setItem('quizExams', JSON.stringify(payload.exams))
+      localStorage.setItem('studyNotes', JSON.stringify(payload.studyNotes))
+      localStorage.setItem('studySubjects', JSON.stringify(payload.studySubjects))
+      localStorage.setItem('quizNotifications', JSON.stringify(payload.notifications))
+      localStorage.setItem('notificationRecipients', JSON.stringify(payload.notificationRecipients))
+      localStorage.setItem('desktopNotificationsEnabled', JSON.stringify(payload.desktopNotificationsEnabled))
+      localStorage.setItem('uploadedVideos', JSON.stringify(payload.videos))
+      localStorage.setItem('adminPassword', payload.adminPassword || adminPassword)
+      localStorage.setItem('quizTitle', payload.quizTitle || 'My Quiz')
     } catch (e) {}
 
     savePermissionSharedState(payload).catch(() => {})
-  }, [permissionStateReady, permittedPhones, permissionRequests, users])
+  }, [permissionStateReady, permittedPhones, permissionRequests, users, adminPassword, questions, exams, quizTitle, studyNotes, studySubjects, notifications, notificationRecipients, desktopNotificationsEnabled, videos])
 
   useEffect(() => {
     try {
