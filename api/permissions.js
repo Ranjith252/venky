@@ -1,29 +1,6 @@
-import { createRequire } from 'node:module'
+import { readSharedState, writeSharedState } from './storage.js'
 
-const require = createRequire(import.meta.url)
-const fs = require('fs')
-const path = require('path')
-
-const DATA_FILE = path.join(process.cwd(), 'data', 'permissions.json')
-
-function ensureFile() {
-  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true })
-  if (!fs.existsSync(DATA_FILE)) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify({ permittedPhones: [], permissionRequests: [], users: {} }, null, 2))
-  }
-}
-
-function readState() {
-  ensureFile()
-  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'))
-}
-
-function writeState(state) {
-  ensureFile()
-  fs.writeFileSync(DATA_FILE, JSON.stringify(state, null, 2))
-}
-
-export default function handler(req, res) {
+export default async function handler(req, res) {
   const secret = req.headers['x-permission-secret']
   const expectedSecret = process.env.VITE_PERMISSION_SYNC_SECRET
 
@@ -33,18 +10,19 @@ export default function handler(req, res) {
   }
 
   if (req.method === 'GET') {
-    res.status(200).json(readState())
+    const state = await readSharedState(process.env)
+    res.status(200).json(state)
     return
   }
 
   if (req.method === 'PUT') {
     let body = ''
     req.on('data', (chunk) => { body += chunk })
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const parsed = JSON.parse(body || '{}')
-        writeState(parsed)
-        res.status(200).json({ ok: true })
+        const saved = await writeSharedState(parsed, process.env)
+        res.status(saved ? 200 : 500).json({ ok: saved })
       } catch (e) {
         res.status(400).json({ error: 'Invalid JSON' })
       }
