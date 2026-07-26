@@ -330,21 +330,36 @@ function App() {
       if (!active) return
 
       if (remoteState) {
-        const normalized = normalizeSharedState(remoteState)
-        setPermittedPhones(normalized.permittedPhones)
-        setPermissionRequests(normalized.permissionRequests)
-        setUsers(normalized.users)
-        setAdminPassword(normalized.adminPassword || adminPassword)
-        setQuestions(normalized.questions || [])
-        setExams(normalized.exams || {})
-        setQuizTitle(normalized.quizTitle || 'My Quiz')
-        setStudyNotes(normalized.studyNotes || [])
-        setStudySubjects(normalized.studySubjects || [])
-        setNotifications(normalized.notifications || [])
-        setNotificationRecipients(normalized.notificationRecipients || [])
-        setDesktopNotificationsEnabled(Boolean(normalized.desktopNotificationsEnabled))
-        if (Array.isArray(normalized.videos)) {
-          setVideos(normalized.videos)
+        const localSnapshot = {
+          permittedPhones,
+          permissionRequests,
+          users,
+          questions,
+          exams,
+          adminPassword,
+          quizTitle,
+          studyNotes,
+          studySubjects,
+          notifications,
+          notificationRecipients,
+          desktopNotificationsEnabled,
+          videos,
+        }
+        const merged = mergeSharedState(localSnapshot, remoteState)
+        setPermittedPhones(merged.permittedPhones)
+        setPermissionRequests(merged.permissionRequests)
+        setUsers(merged.users)
+        setAdminPassword(merged.adminPassword || adminPassword)
+        setQuestions(merged.questions || [])
+        setExams(merged.exams || {})
+        setQuizTitle(merged.quizTitle || 'My Quiz')
+        setStudyNotes(merged.studyNotes || [])
+        setStudySubjects(merged.studySubjects || [])
+        setNotifications(merged.notifications || [])
+        setNotificationRecipients(merged.notificationRecipients || [])
+        setDesktopNotificationsEnabled(Boolean(merged.desktopNotificationsEnabled))
+        if (Array.isArray(merged.videos)) {
+          setVideos(merged.videos)
         }
       }
 

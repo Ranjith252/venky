@@ -68,6 +68,52 @@ export function normalizeSharedState(state) {
   }
 }
 
+export function mergeSharedState(localState, remoteState) {
+  const localNormalized = normalizeSharedState(localState)
+  const remoteNormalized = normalizeSharedState(remoteState)
+
+  const mergeArrays = (left, right) => {
+    const combined = [...left, ...right]
+    const seen = new Set()
+    return combined.filter((item) => {
+      const key = typeof item === 'object' && item && 'id' in item ? String(item.id) : JSON.stringify(item)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }
+
+  const mergedQuestions = mergeArrays(localNormalized.questions || [], remoteNormalized.questions || [])
+  const mergedStudyNotes = mergeArrays(localNormalized.studyNotes || [], remoteNormalized.studyNotes || [])
+  const mergedStudySubjects = mergeArrays(localNormalized.studySubjects || [], remoteNormalized.studySubjects || [])
+  const mergedNotifications = mergeArrays(localNormalized.notifications || [], remoteNormalized.notifications || [])
+  const mergedRecipients = mergeArrays(localNormalized.notificationRecipients || [], remoteNormalized.notificationRecipients || [])
+  const mergedVideos = mergeArrays(localNormalized.videos || [], remoteNormalized.videos || [])
+
+  const permittedPhones = Array.from(new Set([...(localNormalized.permittedPhones || []), ...(remoteNormalized.permittedPhones || [])]))
+  const permissionRequests = Array.from(new Map([...localNormalized.permissionRequests, ...remoteNormalized.permissionRequests].map((request) => [String(request.phone), request])).values())
+  const users = { ...(remoteNormalized.users || {}), ...(localNormalized.users || {}) }
+  const exams = { ...(remoteNormalized.exams || {}), ...(localNormalized.exams || {}) }
+
+  return {
+    ...localNormalized,
+    ...remoteNormalized,
+    permittedPhones,
+    permissionRequests,
+    users,
+    exams,
+    questions: mergedQuestions,
+    studyNotes: mergedStudyNotes,
+    studySubjects: mergedStudySubjects,
+    notifications: mergedNotifications,
+    notificationRecipients: mergedRecipients,
+    videos: mergedVideos,
+    adminPassword: localNormalized.adminPassword || remoteNormalized.adminPassword || '',
+    quizTitle: localNormalized.quizTitle || remoteNormalized.quizTitle || 'My Quiz',
+    desktopNotificationsEnabled: Boolean(localNormalized.desktopNotificationsEnabled || remoteNormalized.desktopNotificationsEnabled),
+  }
+}
+
 export function revokePhoneAccess(state, phone) {
   const normalizedPhone = normalizePhoneKey(phone)
   if (!normalizedPhone) return state
