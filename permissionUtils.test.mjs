@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { comparePasswordValue, mergeSharedState, normalizePhoneState, normalizeSharedState, revokePhoneAccess } from './src/permissionUtils.js'
+import { comparePasswordValue, loadPermissionSharedState, mergeSharedState, normalizePhoneState, normalizeSharedState, removeExamFromState, revokePhoneAccess, savePermissionSharedState } from './src/permissionUtils.js'
+import { getStorageConfig } from './api/storage.js'
 
 test('revokePhoneAccess removes a phone from access, requests, and user records', () => {
   const input = {
@@ -87,6 +88,84 @@ test('mergeSharedState preserves local quiz data when the remote snapshot is par
   assert.equal(merged.users['9999999999'], 'remote')
   assert.equal(merged.adminPassword, 'Admin@123')
   assert.equal(merged.quizTitle, 'Local Quiz')
+})
+
+test('getStorageConfig uses Supabase when credentials are configured', () => {
+  const config = getStorageConfig({
+    SUPABASE_URL: 'https://example.supabase.co',
+    SUPABASE_SERVICE_ROLE_KEY: 'secret',
+    SUPABASE_TABLE: 'app_state',
+  })
+
+  assert.equal(config.kind, 'supabase')
+  assert.equal(config.url, 'https://example.supabase.co')
+  assert.equal(config.table, 'app_state')
+})
+
+test('loadPermissionSharedState preserves questions and exams from the shared payload', async () => {
+  const originalFetch = global.fetch
+  let capturedUrl = ''
+  global.fetch = async (url) => {
+    capturedUrl = String(url)
+    return {
+      ok: true,
+      json: async () => ({
+        permittedPhones: ['9876543210'],
+        permissionRequests: [],
+        users: { '9876543210': 'secret' },
+        questions: [{ id: 1, question: 'What is 2+2?', options: ['3', '4', '5', '6'], answer: 1 }],
+        exams: { exam1: { title: 'Midterm' } },
+      }),
+    }
+  }
+
+  try {
+    const state = await loadPermissionSharedState()
+    assert.equal(state.questions[0].question, 'What is 2+2?')
+    assert.equal(state.exams.exam1.title, 'Midterm')
+    assert.match(capturedUrl, /\/api\/permissions$/)
+  } finally {
+    global.fetch = originalFetch
+  }
+})
+
+test('savePermissionSharedState keeps questions and exams in the payload', async () => {
+  const originalFetch = global.fetch
+  let capturedBody = ''
+  global.fetch = async (_url, options) => {
+    capturedBody = options.body
+    return { ok: true }
+  }
+
+  try {
+    const ok = await savePermissionSharedState({
+      permittedPhones: ['9876543210'],
+      permissionRequests: [],
+      users: { '9876543210': 'secret' },
+      questions: [{ id: 1, question: 'Test', options: ['A', 'B', 'C', 'D'], answer: 0 }],
+      exams: { exam1: { title: 'Midterm' } },
+      adminPassword: 'Admin@123',
+      quizTitle: 'My Quiz',
+      studyNotes: [],
+      studySubjects: [],
+      notifications: [],
+      notificationRecipients: [],
+      desktopNotificationsEnabled: false,
+      videos: [],
+    })
+
+    assert.equal(ok, true)
+    assert.match(capturedBody, /"questions"/)
+    assert.match(capturedBody, /"exams"/)
+  } finally {
+    global.fetch = originalFetch
+  }
+})
+
+test('removeExamFromState removes the selected exam while keeping the rest', () => {
+  const result = removeExamFromState({ exams: { '2026-07-26': { title: 'A' }, '2026-07-27': { title: 'B' } } }, '2026-07-26')
+
+  assert.deepEqual(result.exams, { '2026-07-27': { title: 'B' } })
 })
 
 test('comparePasswordValue trims whitespace before comparing passwords', () => {

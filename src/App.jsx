@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import './App.css'
-import { comparePasswordValue, loadPermissionSharedState, normalizePhoneKey, normalizePhoneState, normalizeSharedState, revokePhoneAccess, savePermissionSharedState } from './permissionUtils'
+import { comparePasswordValue, loadPermissionSharedState, normalizePhoneKey, normalizePhoneState, normalizeSharedState, removeExamFromState, revokePhoneAccess, savePermissionSharedState } from './permissionUtils'
 
 const initialQuestions = [] // Start with empty questions - admin will add up to 100 questions
 
@@ -275,13 +275,6 @@ function App() {
       return []
     }
   })
-  const [adminAudit, setAdminAudit] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('adminAudit') || '[]')
-    } catch (e) {
-      return []
-    }
-  })
   const [newStudySubject, setNewStudySubject] = useState('')
   const [newStudyTopic, setNewStudyTopic] = useState('')
   const [newStudyQuestion, setNewStudyQuestion] = useState('')
@@ -509,18 +502,6 @@ function App() {
     } catch (e) {}
   }, [desktopNotificationsEnabled])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('adminAudit', JSON.stringify(adminAudit))
-    } catch (e) {}
-  }, [adminAudit])
-
-  const pushAudit = (action) => {
-    const entry = { id: Date.now(), action, at: new Date().toISOString() }
-    setAdminAudit((prev) => [entry, ...prev].slice(0, 200))
-    setErrorMessage(action)
-  }
-
   const removePhoneAccess = (phone) => {
     const normalizedPhone = String(phone || '').trim()
     if (!normalizedPhone) return
@@ -537,7 +518,7 @@ function App() {
     setPermittedPhones(nextState.permittedPhones)
     setPermissionRequests(nextState.permissionRequests)
     setUsers(nextState.users)
-    pushAudit(`Removed access for ${normalizedPhone}`)
+    setErrorMessage(`Removed access for ${normalizedPhone}`)
   }
 
   const isAdmin = userRole === 'admin'
@@ -926,7 +907,6 @@ function App() {
     }))
     setExamDateInput(examDate)
     setLastCreatedExamDate(examDate)
-    pushAudit(`Created exam ${examDate} with ${selected.length} questions`)
     setErrorMessage(`Exam created for ${examDate}, valid for 24 hours.`)
     // push a user notification so students see new exam
     const note = {
@@ -961,11 +941,10 @@ function App() {
           }),
         })
           .then((r) => r.json())
-          .then((resJson) => pushAudit(`Email notify: ${resJson.ok ? 'sent' : 'failed'}`))
-          .catch((err) => pushAudit(`Email notify failed: ${String(err)}`))
+          .catch((err) => console.error(err))
       }
     } catch (e) {
-      pushAudit(`Email notify error: ${String(e)}`)
+      console.error(e)
     }
     // clear highlight after a short while
     setTimeout(() => setLastCreatedExamDate(null), 7000)
@@ -1087,17 +1066,13 @@ function App() {
         delete copy[u]
         return copy
       })
-      pushAudit(`Removed user record for ${u}`)
+      setErrorMessage(`Removed user record for ${u}`)
     }
 
     const removeExam = (key) => {
       if (!window.confirm(`Remove exam ${key}? This will delete the exam and its questions.`)) return
-      setExams((prev) => {
-        const copy = { ...prev }
-        delete copy[key]
-        return copy
-      })
-      pushAudit(`Removed exam ${key}`)
+      setExams((prev) => removeExamFromState(prev, key))
+      setErrorMessage(`Removed exam ${key}`)
     }
 
     return (
@@ -1143,20 +1118,6 @@ function App() {
                   <div style={{ marginTop: 4 }}>
                     <button type="button" onClick={() => removeExam(k)}>Remove exam</button>
                   </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <div style={{ marginTop: 8 }}>
-          <strong>Admin Audit ({adminAudit.length}):</strong>
-          {adminAudit.length === 0 ? (
-            <div>None</div>
-          ) : (
-            <ul>
-              {adminAudit.slice(0, 20).map((a) => (
-                <li key={a.id} style={{ marginBottom: 4 }}>
-                  <small style={{ color: '#666' }}>{new Date(a.at).toLocaleString()}</small> — {a.action}
                 </li>
               ))}
             </ul>
@@ -1389,8 +1350,21 @@ function App() {
                                   <div id={`exam-${date}`} style={{ padding: 6, borderRadius: 4, backgroundColor: date === lastCreatedExamDate ? '#fff8e1' : 'transparent' }}>
                                     <strong>{date}</strong> — {exam.title || `Exam ${date}`} ({Array.isArray(exam.questions) ? exam.questions.length : 0} questions)
                                   </div>
-                              <div style={{ fontSize: 13, color: active ? '#1b5e20' : '#b71c1c' }}>
-                                {active ? `Active until ${expiresAt?.toLocaleString()}` : `Expired ${expiresAt?.toLocaleString()}`}
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
+                                <div style={{ fontSize: 13, color: active ? '#1b5e20' : '#b71c1c' }}>
+                                  {active ? `Active until ${expiresAt?.toLocaleString()}` : `Expired ${expiresAt?.toLocaleString()}`}
+                                </div>
+                                <button
+                                  type="button"
+                                  className="secondary-button"
+                                  onClick={() => {
+                                    if (!window.confirm(`Remove exam ${date}?`)) return
+                                    setExams((prev) => removeExamFromState(prev, date))
+                                    setErrorMessage(`Removed exam ${date}`)
+                                  }}
+                                >
+                                  Remove exam
+                                </button>
                               </div>
                                   {date === lastCreatedExamDate && (
                                     <script dangerouslySetInnerHTML={{ __html: `setTimeout(()=>{const el=document.getElementById('exam-${date}'); if(el) el.scrollIntoView({behavior:'smooth',block:'center'});},50)` }} />

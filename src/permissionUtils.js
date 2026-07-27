@@ -132,8 +132,17 @@ export function revokePhoneAccess(state, phone) {
   return { ...state, permittedPhones, permissionRequests, users }
 }
 
+export function removeExamFromState(state, examKey) {
+  if (!examKey) return state
+
+  const exams = { ...(state?.exams || {}) }
+  delete exams[examKey]
+
+  return { ...(state || {}), exams }
+}
+
 export async function loadPermissionSharedState() {
-  if (typeof window === 'undefined') return null
+  if (typeof globalThis.fetch !== 'function') return null
 
   try {
     const { url, headers } = resolvePermissionSyncConfig(import.meta.env || {})
@@ -141,17 +150,17 @@ export async function loadPermissionSharedState() {
     if (!response.ok) return null
     const payload = await response.json()
     if (!payload || typeof payload !== 'object') return null
-    return normalizePhoneState(payload)
+    return normalizeSharedState(payload)
   } catch (e) {
     return null
   }
 }
 
 export async function savePermissionSharedState(state) {
-  if (typeof window === 'undefined') return false
+  if (typeof globalThis.fetch !== 'function') return false
 
   try {
-    const payload = normalizePhoneState(state)
+    const payload = normalizeSharedState(state)
     const { url, headers } = resolvePermissionSyncConfig(import.meta.env || {})
     const response = await fetch(url, {
       method: 'PUT',
