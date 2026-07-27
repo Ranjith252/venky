@@ -1350,7 +1350,7 @@ function App() {
                                   <div id={`exam-${date}`} style={{ padding: 6, borderRadius: 4, backgroundColor: date === lastCreatedExamDate ? '#fff8e1' : 'transparent' }}>
                                     <strong>{date}</strong> — {exam.title || `Exam ${date}`} ({Array.isArray(exam.questions) ? exam.questions.length : 0} questions)
                                   </div>
-                              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4, flexWrap: 'wrap' }}>
                                 <div style={{ fontSize: 13, color: active ? '#1b5e20' : '#b71c1c' }}>
                                   {active ? `Active until ${expiresAt?.toLocaleString()}` : `Expired ${expiresAt?.toLocaleString()}`}
                                 </div>
@@ -1363,7 +1363,7 @@ function App() {
                                     setErrorMessage(`Removed exam ${date}`)
                                   }}
                                 >
-                                  Remove exam
+                                  {active ? 'Remove exam' : 'Remove expired exam'}
                                 </button>
                               </div>
                                   {date === lastCreatedExamDate && (
