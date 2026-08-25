@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import './App.css'
+import { fetchJson } from './apiClient'
 import { comparePasswordValue, loadPermissionSharedState, normalizePhoneKey, normalizePhoneState, normalizeSharedState, removeExamFromState, revokePhoneAccess, savePermissionSharedState } from './permissionUtils'
 
 const initialQuestions = [] // Start with empty questions - admin will add up to 100 questions
@@ -170,6 +171,10 @@ function App() {
     }
   })
   const [searchTerm, setSearchTerm] = useState('')
+  const [backendStatus, setBackendStatus] = useState('Checking backend...')
+  const [backendMessage, setBackendMessage] = useState('')
+  const [backendUsers, setBackendUsers] = useState([])
+  const [backendForm, setBackendForm] = useState({ name: '', email: '' })
   const [videos, setVideos] = useState(() => {
     try {
       // Try multiple possible localStorage keys for backwards compatibility
@@ -211,6 +216,34 @@ function App() {
       localStorage.setItem('uploadedVideos', JSON.stringify(videos))
     } catch (e) {}
   }, [videos])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadBackendUsers() {
+      try {
+        const health = await fetchJson('/api/health')
+        if (cancelled) return
+        setBackendStatus(health.message || 'Backend connected')
+        const users = await fetchJson('/api/users')
+        if (cancelled) return
+        setBackendUsers(Array.isArray(users) ? users : [])
+        setBackendMessage('Loaded users from backend')
+      } catch (error) {
+        if (!cancelled) {
+          setBackendStatus('Connection failed')
+          setBackendMessage(error.message)
+        }
+      }
+    }
+
+    loadBackendUsers()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const [lastUploadedVideoId, setLastUploadedVideoId] = useState(null)
   const [videoTitleInput, setVideoTitleInput] = useState('')
   const [quizStarted, setQuizStarted] = useState(false)
@@ -600,6 +633,46 @@ function App() {
     setUserRole('user')
     localStorage.removeItem('quizUser')
     localStorage.removeItem('quizUserRole')
+  }
+
+  const handleBackendRefresh = async () => {
+    try {
+      setBackendStatus('Connecting...')
+      const health = await fetchJson('/api/health')
+      const users = await fetchJson('/api/users')
+      setBackendStatus(health.message || 'Backend connected')
+      setBackendUsers(Array.isArray(users) ? users : [])
+      setBackendMessage('Loaded users from backend')
+    } catch (error) {
+      setBackendStatus('Connection failed')
+      setBackendMessage(error.message)
+    }
+  }
+
+  const handleBackendSubmit = async (event) => {
+    event.preventDefault()
+
+    if (!backendForm.name.trim() || !backendForm.email.trim()) {
+      setBackendMessage('Please enter both name and email')
+      return
+    }
+
+    try {
+      const createdUser = await fetchJson('/api/users', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: backendForm.name.trim(),
+          email: backendForm.email.trim(),
+        }),
+      })
+
+      setBackendUsers((prev) => [createdUser, ...prev])
+      setBackendForm({ name: '', email: '' })
+      setBackendMessage('User saved to backend')
+      setBackendStatus('Backend connected')
+    } catch (error) {
+      setBackendMessage(error.message)
+    }
   }
 
   const handleLogin = (event) => {
@@ -1790,6 +1863,49 @@ function App() {
               </button>
             </div>
           )}
+
+          <div className="dashboard-section backend-sync-card">
+            <h2>🌐 Backend sync</h2>
+            <p className="dashboard-note">Send a sample user to your local Node.js API and view the response from MongoDB.</p>
+            <div className="backend-sync-toolbar">
+              <button type="button" className="secondary-button" onClick={handleBackendRefresh}>
+                Refresh
+              </button>
+              <span className={`backend-status ${backendStatus === 'Connection failed' ? 'backend-status-error' : ''}`}>
+                {backendStatus}
+              </span>
+            </div>
+            {backendMessage && <p className="dashboard-note">{backendMessage}</p>}
+            <form className="backend-sync-form" onSubmit={handleBackendSubmit}>
+              <input
+                type="text"
+                value={backendForm.name}
+                onChange={(event) => setBackendForm((prev) => ({ ...prev, name: event.target.value }))}
+                placeholder="Name"
+              />
+              <input
+                type="email"
+                value={backendForm.email}
+                onChange={(event) => setBackendForm((prev) => ({ ...prev, email: event.target.value }))}
+                placeholder="Email"
+              />
+              <button type="submit" className="primary-button">
+                Save user
+              </button>
+            </form>
+            {backendUsers.length > 0 && (
+              <div className="backend-users-list">
+                <h3>Users from backend</h3>
+                <ul>
+                  {backendUsers.map((item) => (
+                    <li key={item._id || item.email}>
+                      <strong>{item.name}</strong> — {item.email}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
 
           <div className="dashboard-section quiz-summary">
             <h2>Quiz preview</h2>

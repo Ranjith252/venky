@@ -402,6 +402,36 @@
   color: var(--text-h);
 }
 
+.backend-sync-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.backend-status {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.backend-status-error {
+  color: #c62828;
+}
+
+.backend-sync-form {
+  display: grid;
+  gap: 10px;
+}
+
+.backend-users-list ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
 .dashboard-section input,
 .dashboard-section select,
 .search-box input {
